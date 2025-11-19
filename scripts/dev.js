@@ -2,6 +2,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const runInShell = process.platform === 'win32';
+const projectRoot = path.join(__dirname, '..');
 const children = [];
 let shuttingDown = false;
 
@@ -16,6 +18,14 @@ const registerChild = (child, name) => {
     const reason = signal ? `signal ${signal}` : `code ${code}`;
     console.error(`\n[dev] Процесс ${name} завершился (${reason}). Останавливаем окружение.`);
     shutdown(code === 0 ? 0 : 1);
+  });
+  child.on('error', (error) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.error(`\n[dev] Не удалось запустить ${name}: ${error.message}`);
+    shutdown(1);
   });
 };
 
@@ -40,10 +50,12 @@ const shutdown = (exitCode = 0) => {
 };
 
 const startServer = () => {
-  const serverPath = path.join(__dirname, '..', 'server', 'index.js');
+  const serverPath = path.join(projectRoot, 'server', 'index.js');
   const child = spawn('node', [serverPath], {
     stdio: 'inherit',
     env: process.env,
+    cwd: projectRoot,
+    shell: runInShell,
   });
   registerChild(child, 'сервер авторизации');
 };
@@ -52,6 +64,8 @@ const startClient = () => {
   const child = spawn(npmCommand, ['run', 'client'], {
     stdio: 'inherit',
     env: process.env,
+    cwd: projectRoot,
+    shell: runInShell,
   });
   registerChild(child, 'клиентское приложение');
 };
