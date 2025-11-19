@@ -1,9 +1,68 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, Factory, Truck, DollarSign, AlertTriangle, Settings, Users, Package, FileText } from 'lucide-react';
 
-const HoldingDashboard = () => {
+const HoldingDashboard = ({ user, onLogout, onPasswordChange }) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordFeedback, setPasswordFeedback] = useState(null);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const forcePasswordChange = Boolean(user?.needsPasswordReset);
+
+  useEffect(() => {
+    if (forcePasswordChange) {
+      setCurrentPage('dashboard');
+    }
+  }, [forcePasswordChange]);
+
+  const userInitials = user?.name
+    ? user.name
+        .split(' ')
+        .map((part) => part.trim()[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'ПХ';
+
+  const handlePasswordSubmit = async (event) => {
+    event.preventDefault();
+    if (passwordSaving) {
+      return;
+    }
+
+    setPasswordFeedback(null);
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordFeedback({ ok: false, message: 'Новый пароль должен содержать не менее 8 символов' });
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordFeedback({ ok: false, message: 'Новый пароль и подтверждение не совпадают' });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const result = await onPasswordChange(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordFeedback(result);
+
+      if (result.ok) {
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      }
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const lastLoginText = user?.lastLoginAt
+    ? new Date(user.lastLoginAt).toLocaleString('ru-RU')
+    : 'Нет данных';
 
   // Данные для графиков
   const productionData = [
@@ -1341,7 +1400,7 @@ const HoldingDashboard = () => {
           <h1 className="text-xl font-bold text-blue-600">Холдинг</h1>
           <p className="text-xs text-gray-500 mt-1">Система управления</p>
         </div>
-        
+
         <nav className="p-4">
           {menuItems.map((item) => (
             <button
@@ -1362,11 +1421,11 @@ const HoldingDashboard = () => {
         <div className="absolute bottom-0 w-64 p-4 border-t bg-white">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-              АП
+              {userInitials}
             </div>
             <div>
-              <p className="text-sm font-semibold">Админ Пользователь</p>
-              <p className="text-xs text-gray-500">Центральный офис</p>
+              <p className="text-sm font-semibold">{user?.name || 'Оператор системы'}</p>
+              <p className="text-xs text-gray-500 break-all">{user?.login}</p>
             </div>
           </div>
         </div>
@@ -1374,18 +1433,134 @@ const HoldingDashboard = () => {
 
       {/* Основной контент */}
       <div className="flex-1 overflow-auto">
-        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+        <div className="bg-white shadow-sm border-b px-8 py-4 flex flex-wrap gap-4 justify-between items-center">
           <div>
             <p className="text-sm text-gray-500">Последнее обновление: {new Date().toLocaleString('ru-RU')}</p>
+            <p className="text-xs text-gray-400">Последний вход: {lastLoginText}</p>
           </div>
           <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-800">{user?.name}</p>
+              <p className="text-xs text-gray-500">{user?.login}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+            >
+              Выйти
+            </button>
             <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
               Экспорт отчета
             </button>
           </div>
         </div>
-        
-        <div className="p-8">
+
+        <div className="p-8 space-y-6">
+          {forcePasswordChange && (
+            <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl space-y-3">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="text-orange-500" size={24} />
+                <div>
+                  <p className="font-semibold text-orange-900">Требуется сменить пароль</p>
+                  <p className="text-sm text-orange-800">
+                    Для вашей учетной записи еще не задан индивидуальный пароль. Сразу после входа установите новый,
+                    используя форму безопасности ниже.
+                  </p>
+                </div>
+              </div>
+              <ul className="text-sm text-orange-900 list-disc list-inside space-y-1">
+                <li>Текущий пароль временно совпадает с логином: {user?.login}</li>
+                <li>Новый пароль должен содержать не менее 8 символов</li>
+                <li>После успешного сохранения доступ к панели разблокируется без предупреждений</li>
+              </ul>
+            </div>
+          )}
+
+          <div className="bg-white p-6 rounded-lg shadow border border-blue-100">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Безопасность профиля</h2>
+                <p className="text-sm text-gray-500">Смена пароля для учетной записи {user?.login}</p>
+              </div>
+              <p className="text-xs text-gray-400">Пароль можно изменять в любой момент</p>
+            </div>
+            <form className="grid gap-4 md:grid-cols-3" onSubmit={handlePasswordSubmit}>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1" htmlFor="currentPassword">
+                  Текущий пароль
+                </label>
+                <input
+                  id="currentPassword"
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))
+                  }
+                  className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={forcePasswordChange ? 'Пароль совпадает с логином' : '••••••••'}
+                  required
+                />
+                {forcePasswordChange && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Временно используйте корпоративный логин в качестве текущего пароля
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1" htmlFor="newPassword">
+                  Новый пароль
+                </label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))
+                  }
+                  className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Не менее 8 символов"
+                  required
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1" htmlFor="confirmPassword">
+                  Подтверждение пароля
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                  }
+                  className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Повторите новый пароль"
+                  required
+                />
+              </div>
+              <div className="md:col-span-3 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className={`px-6 py-2 bg-blue-600 text-white rounded-lg transition ${
+                    passwordSaving ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'
+                  }`}
+                >
+                  {passwordSaving ? 'Сохраняем...' : 'Сменить пароль'}
+                </button>
+              </div>
+            </form>
+            {passwordFeedback && (
+              <p
+                className={`mt-4 text-sm px-4 py-2 rounded ${
+                  passwordFeedback.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}
+              >
+                {passwordFeedback.message}
+              </p>
+            )}
+          </div>
+
           {renderPage()}
         </div>
       </div>
