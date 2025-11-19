@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, Factory, Truck, DollarSign, AlertTriangle, Settings, Users, Package, FileText } from 'lucide-react';
 
@@ -11,6 +11,13 @@ const HoldingDashboard = ({ user, onLogout, onPasswordChange }) => {
   });
   const [passwordFeedback, setPasswordFeedback] = useState(null);
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const forcePasswordChange = Boolean(user?.needsPasswordReset);
+
+  useEffect(() => {
+    if (forcePasswordChange) {
+      setCurrentPage('dashboard');
+    }
+  }, [forcePasswordChange]);
 
   const userInitials = user?.name
     ? user.name
@@ -1449,6 +1456,26 @@ const HoldingDashboard = ({ user, onLogout, onPasswordChange }) => {
         </div>
 
         <div className="p-8 space-y-6">
+          {forcePasswordChange && (
+            <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl space-y-3">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="text-orange-500" size={24} />
+                <div>
+                  <p className="font-semibold text-orange-900">Требуется сменить пароль</p>
+                  <p className="text-sm text-orange-800">
+                    Для вашей учетной записи еще не задан индивидуальный пароль. Сразу после входа установите новый,
+                    используя форму безопасности ниже.
+                  </p>
+                </div>
+              </div>
+              <ul className="text-sm text-orange-900 list-disc list-inside space-y-1">
+                <li>Текущий пароль временно совпадает с логином: {user?.login}</li>
+                <li>Новый пароль должен содержать не менее 8 символов</li>
+                <li>После успешного сохранения доступ к панели разблокируется без предупреждений</li>
+              </ul>
+            </div>
+          )}
+
           <div className="bg-white p-6 rounded-lg shadow border border-blue-100">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <div>
@@ -1470,9 +1497,14 @@ const HoldingDashboard = ({ user, onLogout, onPasswordChange }) => {
                     setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))
                   }
                   className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="••••••••"
+                  placeholder={forcePasswordChange ? 'Пароль совпадает с логином' : '••••••••'}
                   required
                 />
+                {forcePasswordChange && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Временно используйте корпоративный логин в качестве текущего пароля
+                  </p>
+                )}
               </div>
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1" htmlFor="newPassword">

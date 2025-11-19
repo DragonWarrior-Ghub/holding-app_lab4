@@ -87,11 +87,14 @@ const updatePasswordHash = (userId, hash) => {
   execSql(sql);
 };
 
+const hasPasswordHash = (value) => typeof value === 'string' && value.trim() !== '';
+
 const normalizeUser = (record) => ({
   id: record.id,
   name: record.full_name || 'Оператор производственного холдинга',
   login: record.login,
   lastLoginAt: record.last_login_at,
+  needsPasswordReset: !hasPasswordHash(record.password_hash),
 });
 
 const hashPassword = (password) =>
@@ -103,12 +106,14 @@ const verifyPassword = (record, candidate) => {
   }
 
   const stored = record.password_hash;
-  if (!stored) {
-    return candidate === record.login;
+  if (!hasPasswordHash(stored)) {
+    const normalizedLogin = (record.login || '').trim();
+    return candidate.trim() === normalizedLogin;
   }
 
-  if (stored.startsWith('sha256:')) {
-    const expected = stored.slice(7);
+  const trimmedStored = stored.trim();
+  if (trimmedStored.startsWith('sha256:')) {
+    const expected = trimmedStored.slice(7);
     const computed = crypto.createHash('sha256').update(candidate).digest('hex');
     try {
       return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(computed, 'hex'));
@@ -117,7 +122,7 @@ const verifyPassword = (record, candidate) => {
     }
   }
 
-  return candidate === stored;
+  return candidate === trimmedStored;
 };
 
 const sendJson = (res, status, payload) => {
@@ -174,9 +179,12 @@ const handleLogin = async (req, res) => {
     const timestamp = new Date().toISOString();
     updateLastLogin(record.id, timestamp);
 
+    const normalizedUser = normalizeUser({ ...record, last_login_at: timestamp });
+
     sendJson(res, 200, {
       ok: true,
-      user: normalizeUser({ ...record, last_login_at: timestamp }),
+      user: normalizedUser,
+      requiresPasswordReset: normalizedUser.needsPasswordReset,
     });
   } catch (error) {
     console.error('[holding-api] Ошибка входа:', error.message);

@@ -1,19 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import HoldingDashboard from './components/HoldingDashboard';
 import LoginScreen from './components/LoginScreen';
-import { persistUserRecord, readUserRecord } from './data/userRecord';
 
 const LOCAL_SESSION_KEY = 'holdingAuthUser';
+const AUTH_API_BASE = process.env.REACT_APP_AUTH_API || '/api';
 
 function App() {
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [accountRecord, setAccountRecord] = useState(null);
 
   useEffect(() => {
-    const storedAccount = readUserRecord();
-    setAccountRecord(storedAccount);
-
     const sessionUser = window.localStorage.getItem(LOCAL_SESSION_KEY);
     if (sessionUser) {
       try {
@@ -25,35 +21,40 @@ function App() {
     setAuthReady(true);
   }, []);
 
+  const callAuthApi = async (endpoint, payload) => {
+    try {
+      const response = await fetch(`${AUTH_API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        return { ok: false, message: data.message || 'Не удалось обработать запрос' };
+      }
+      return data;
+    } catch (error) {
+      return { ok: false, message: 'Не удалось связаться с сервером авторизации' };
+    }
+  };
+
   const handleLogin = async ({ username, password }) => {
-    if (!accountRecord) {
-      return { ok: false, message: 'Учетная запись еще не готова. Попробуйте снова.' };
-    }
-
     const trimmedLogin = username.trim();
-    if (trimmedLogin.toLowerCase() !== accountRecord.login.toLowerCase()) {
-      return { ok: false, message: 'Неверный логин или пароль' };
+    if (!trimmedLogin || !password) {
+      return { ok: false, message: 'Укажите логин и пароль' };
     }
 
-    if (password !== accountRecord.password) {
-      return { ok: false, message: 'Неверный логин или пароль' };
+    const result = await callAuthApi('/login', {
+      login: trimmedLogin,
+      password,
+    });
+
+    if (result.ok && result.user) {
+      window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(result.user));
+      setCurrentUser(result.user);
     }
 
-    const loginTimestamp = new Date().toISOString();
-    const nextRecord = { ...accountRecord, lastLoginAt: loginTimestamp };
-    persistUserRecord(nextRecord);
-    setAccountRecord(nextRecord);
-
-    const sessionInfo = {
-      id: nextRecord.id,
-      name: nextRecord.name,
-      login: nextRecord.login,
-      lastLoginAt: nextRecord.lastLoginAt,
-    };
-
-    window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(sessionInfo));
-    setCurrentUser(sessionInfo);
-    return { ok: true };
+    return result;
   };
 
   const handleLogout = () => {
@@ -62,19 +63,23 @@ function App() {
   };
 
   const handlePasswordChange = async (currentPassword, newPassword) => {
-    if (!accountRecord) {
-      return { ok: false, message: 'Учетная запись не найдена' };
+    if (!currentUser) {
+      return { ok: false, message: 'Сначала войдите в систему' };
     }
 
-    if (currentPassword !== accountRecord.password) {
-      return { ok: false, message: 'Текущий пароль указан неверно' };
+    const result = await callAuthApi('/change-password', {
+      userId: currentUser.id,
+      currentPassword,
+      newPassword,
+    });
+
+    if (result.ok) {
+      const updatedUser = { ...currentUser, needsPasswordReset: false };
+      window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
     }
 
-    const nextRecord = { ...accountRecord, password: newPassword };
-    persistUserRecord(nextRecord);
-    setAccountRecord(nextRecord);
-
-    return { ok: true, message: 'Пароль успешно изменен' };
+    return result;
   };
 
   if (!authReady) {

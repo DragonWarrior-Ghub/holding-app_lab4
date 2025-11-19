@@ -84,10 +84,10 @@ const LoginScreen = ({ onLogin }) => {
 
         <div className="text-sm text-gray-500 space-y-1">
           <p>
-            Демонстрационная запись создана администратором: <span className="font-semibold">operator@holding</span>
+            Демонстрационная запись создается администратором БД: <span className="font-semibold">operator@holding</span>
           </p>
           <p>
-            Если пароль не задан, используйте логин в качестве пароля. После входа его можно изменить в разделе безопасности.
+            Если в таблице `holding_users` поле <code>password_hash</code> пустое, используйте логин как пароль и задайте новое значение в разделе безопасности — оно сохранится в базе данных.
           </p>
         </div>
       </div>
