@@ -30,7 +30,10 @@ function App() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {
-        return { ok: false, message: data.message || 'Не удалось обработать запрос' };
+        return {
+          ok: false,
+          message: data.message || 'API авторизации недоступно. Проверьте, запущен ли сервер.',
+        };
       }
       return data;
     } catch (error) {
